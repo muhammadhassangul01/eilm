@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# E-ILM-ACADEMY portal
 
-## Getting Started
+This project serves as the academy website and live student/quiz tracking portal.
 
-First, run the development server:
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev -- --hostname 0.0.0.0
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Required environment variables
 
-## Learn More
+Create a local `.env.local` file based on `.env.example` and fill in the real values.
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.example .env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Required values:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `GOOGLE_SERVICE_ACCOUNT_JSON` or `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+- `REGISTRATION_SHEET_ID` and `REGISTRATION_TAB_ID`
+- `ADMIN_PASSWORD`
 
-## Deploy on Vercel
+The service account needs viewer access on the registration sheet and every quiz
+response sheet, plus editor access on the quiz registry tab (it defaults to a tab
+named `Quizzes` inside the registration spreadsheet, created on first use).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The app reads all sheets server-side so student data never reaches the browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Quiz registry
+
+Quizzes are managed live from `/admin` → **Quiz registry**. Paste:
+
+1. a quiz title
+2. the Google Form link students should open
+3. the response sheet link, e.g.
+   `https://docs.google.com/spreadsheets/d/ID/edit?gid=1144510736`
+
+The spreadsheet id and tab gid are parsed from the link, the row is written to the
+registry tab, and every request reads that tab again — no redeploy when a new quiz
+is added. Registry columns: `Title | Form Link | Response Sheet URL | Tab gid | Enabled`.
+
+Fallbacks are used only while the registry tab is empty (in this order):
+`QUIZ_REGISTRY_JSON` → numbered `QUIZ_1_*` variables → legacy `QUIZ_SHEET_ID`.
+
+## Student login rules
+
+- Phone numbers are normalised to E.164, default country Pakistan, with UK and
+  Germany selectable (typed `+92` / `44` / `0049` codes are also understood).
+- One registration matches the number → log in.
+- Several registrations share the number → the exact registered name is required.
+- No match → rejected.
+- Quiz responses follow the same rule: a response on a shared number is only
+  credited when the submitted name uniquely identifies one registration, so a
+  response is never counted for two students.
+
+## Checks
+
+```bash
+npm run verify   # phone normalisation, login matching, sheet URL parsing, registry rows
+npm run lint
+npm run build
+```
+
+`npm run verify` runs offline. For a full UI check without Google credentials, point
+the app at local JSON fixtures:
+
+```bash
+SHEET_FIXTURE_DIR=./fixtures npm run dev
+```
+
+Fixture files are named `<spreadsheetId>.json` and hold
+`{ "tabs": [{ "title", "gid", "rows": [[]] }] }`. Never set this in production.
+
+## Admin export
+
+The protected admin dashboard exposes a JSON export of the live records
+(`/api/admin/export?type=json`). CSV export was removed on request.
+
+## Production build
+
+```bash
+npm run build
+npm start
+```
+# eilm
