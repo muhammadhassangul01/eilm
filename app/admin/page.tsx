@@ -25,9 +25,11 @@ function first(value?: string | string[]): string {
 
 export default function AdminPage({ searchParams }: { searchParams?: Promise<AdminSearchParams> }) {
   return (
-    <Suspense fallback={<DataLoading label="Loading admin dashboard" />}>
-      <AdminPageContent searchParams={searchParams} />
-    </Suspense>
+    <div className="min-h-[75vh] bg-[#F0F7FC]">
+      <Suspense fallback={<DataLoading label="Loading admin dashboard" />}>
+        <AdminPageContent searchParams={searchParams} />
+      </Suspense>
+    </div>
   );
 }
 
@@ -44,9 +46,9 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
   if (!adminSession) {
     return (
       <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-[#d9c8b2] bg-[#fffaf4] p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#1a4d3d]">Admin access</p>
-          <h1 className="mt-3 text-3xl font-bold text-[#17372d]">Protected admin portal</h1>
+        <div className="rounded-3xl border border-[#DCE8F4] bg-[#FFFFFF] p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Admin access</p>
+          <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Protected admin portal</h1>
 
           {errorMessage ? (
             <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -56,20 +58,20 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
 
           <form action={handleAdminLogin} className="mt-6 space-y-4">
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-[#17372d]">
+              <label htmlFor="password" className="mb-2 block text-sm font-medium text-[#102B4E]">
                 Password
               </label>
               <input
                 id="password"
                 name="password"
                 type="password"
-                className="w-full rounded-xl border border-[#d9c8b2] bg-white px-4 py-3 text-[#17372d] outline-none ring-0 focus:border-[#1a4d3d]"
+                className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none ring-0 focus:border-[#102B4E]"
                 placeholder="Enter admin password"
               />
             </div>
             <button
               type="submit"
-              className="rounded-full bg-[#1a4d3d] px-6 py-3 text-sm font-semibold text-[#f9f3ea]"
+              className="rounded-full bg-[#102B4E] px-6 py-3 text-sm font-semibold text-[#FFFFFF]"
             >
               Sign in
             </button>
@@ -84,10 +86,10 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
   if (snapshot.error) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-[#d9c8b2] bg-[#fffaf4] p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#1a4d3d]">Data error</p>
-          <h1 className="mt-3 text-3xl font-bold text-[#17372d]">Unable to load student data.</h1>
-          <p className="mt-4 text-sm leading-7 text-[#33544b]">{snapshot.error}</p>
+        <div className="rounded-3xl border border-[#DCE8F4] bg-[#FFFFFF] p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Data error</p>
+          <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Unable to load student data.</h1>
+          <p className="mt-4 text-sm leading-7 text-[#46607F]">{snapshot.error}</p>
         </div>
       </div>
     );
@@ -164,22 +166,22 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4] p-6 shadow-sm sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-6 shadow-sm sm:p-8 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#1a4d3d]">Admin dashboard</p>
-          <h1 className="mt-3 text-3xl font-bold text-[#17372d]">Student and quiz tracking</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Admin dashboard</p>
+          <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Student and quiz tracking</h1>
         </div>
         <div className="flex flex-wrap gap-3">
           <a
             href="/api/admin/export?type=json"
-            className="rounded-full border border-[#1a4d3d] bg-transparent px-4 py-2 text-sm font-semibold text-[#1a4d3d]"
+            className="rounded-full border border-[#102B4E] bg-transparent px-4 py-2 text-sm font-semibold text-[#102B4E]"
           >
             Export JSON
           </a>
           <form action={logoutAdmin}>
             <button
               type="submit"
-              className="rounded-full border border-[#1a4d3d] bg-transparent px-4 py-2 text-sm font-semibold text-[#1a4d3d]"
+              className="rounded-full border border-[#102B4E] bg-transparent px-4 py-2 text-sm font-semibold text-[#102B4E]"
             >
               Log out
             </button>
@@ -204,15 +206,15 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
         </div>
       ) : null}
 
-      <div className="mt-6 rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4] p-5 shadow-sm">
+      <div className="mt-6 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-5 shadow-sm">
         <form method="GET" className="flex flex-col gap-3 md:flex-row">
           <input
             name="search"
             defaultValue={searchQuery}
             placeholder="Search by name, ID, number, status, quiz, or reason"
-            className="w-full rounded-xl border border-[#d9c8b2] bg-white px-4 py-3 text-[#17372d] outline-none focus:border-[#1a4d3d]"
+            className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
           />
-          <button type="submit" className="rounded-full bg-[#1a4d3d] px-5 py-3 text-sm font-semibold text-[#f9f3ea]">
+          <button type="submit" className="rounded-full bg-[#102B4E] px-5 py-3 text-sm font-semibold text-[#FFFFFF]">
             Search
           </button>
         </form>
@@ -225,9 +227,9 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
           { label: "Completed students", value: snapshot.metrics.uniqueCompletedStudents },
           { label: "Pending students", value: snapshot.metrics.pendingStudents },
         ].map((metric) => (
-          <div key={metric.label} className="rounded-2xl border border-[#d9c8b2] bg-[#edf5ef] p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#1a4d3d]">{metric.label}</p>
-            <p className="mt-3 text-2xl font-bold text-[#17372d]">{metric.value}</p>
+          <div key={metric.label} className="rounded-2xl border border-[#DCE8F4] bg-[#F0F7FC] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#102B4E]">{metric.label}</p>
+            <p className="mt-3 text-2xl font-bold text-[#102B4E]">{metric.value}</p>
           </div>
         ))}
       </div>
@@ -239,19 +241,19 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
           { label: "Invalid phones", value: snapshot.metrics.invalidSubmissions },
           { label: "Repeated numbers", value: snapshot.metrics.repeatedSubmissionNumbers },
         ].map((metric) => (
-          <div key={metric.label} className="rounded-2xl border border-[#d9c8b2] bg-[#f3e7d7] p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#1a4d3d]">{metric.label}</p>
-            <p className="mt-3 text-2xl font-bold text-[#17372d]">{metric.value}</p>
+          <div key={metric.label} className="rounded-2xl border border-[#DCE8F4] bg-[#E7F2FB] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#102B4E]">{metric.label}</p>
+            <p className="mt-3 text-2xl font-bold text-[#102B4E]">{metric.value}</p>
           </div>
         ))}
       </div>
 
-      <section id="registry" className="mt-10 overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-        <div className="border-b border-[#d9c8b2] p-5">
-          <h2 className="text-2xl font-semibold text-[#17372d]">Quiz registry</h2>
-          <p className="mt-2 text-sm leading-7 text-[#33544b]">
+      <section id="registry" className="mt-10 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+        <div className="border-b border-[#DCE8F4] p-5">
+          <h2 className="text-2xl font-semibold text-[#102B4E]">Quiz registry</h2>
+          <p className="mt-2 text-sm leading-7 text-[#46607F]">
             Source:{" "}
-            <span className="font-semibold text-[#17372d]">
+            <span className="font-semibold text-[#102B4E]">
               {snapshot.registrySource === "registry"
                 ? "Google Sheet tab (read live on every request)"
                 : snapshot.registrySource === "none"
@@ -263,9 +265,9 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
         </div>
 
         <div className="grid gap-6 p-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="overflow-x-auto rounded-2xl border border-[#d9c8b2] bg-[#f9f7f3]">
-            <table className="min-w-full text-left text-sm text-[#33544b]">
-              <thead className="bg-[#edf5ef] text-[#17372d]">
+          <div className="overflow-x-auto rounded-2xl border border-[#DCE8F4] bg-[#F8FBFE]">
+            <table className="min-w-full text-left text-sm text-[#46607F]">
+              <thead className="bg-[#F0F7FC] text-[#102B4E]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Title</th>
                   <th className="px-4 py-3 font-semibold">Form</th>
@@ -277,16 +279,16 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
               <tbody>
                 {snapshot.quizDefinitions.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-[#33544b]">
+                    <td colSpan={5} className="px-4 py-6 text-[#46607F]">
                       No quizzes configured yet. Add the first one on the right.
                     </td>
                   </tr>
                 ) : (
                   snapshot.quizDefinitions.map((quiz) => (
-                    <tr key={quiz.id} className="border-t border-[#d9c8b2]">
+                    <tr key={quiz.id} className="border-t border-[#DCE8F4]">
                       <td className="px-4 py-3">
-                        <span className="font-semibold text-[#17372d]">{quiz.name}</span>
-                        <span className="ml-2 text-xs uppercase tracking-[0.12em] text-[#1a4d3d]">{quiz.source}</span>
+                        <span className="font-semibold text-[#102B4E]">{quiz.name}</span>
+                        <span className="ml-2 text-xs uppercase tracking-[0.12em] text-[#102B4E]">{quiz.source}</span>
                       </td>
                       <td className="px-4 py-3">
                         {quiz.formUrl ? (
@@ -294,7 +296,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                             href={quiz.formUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[#1a4d3d] underline"
+                            className="text-[#102B4E] underline"
                           >
                             open
                           </a>
@@ -310,7 +312,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                             }`}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[#1a4d3d] underline"
+                            className="text-[#102B4E] underline"
                           >
                             sheet
                           </a>
@@ -327,7 +329,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                               <input type="hidden" name="enabled" value={quiz.enabled ? "false" : "true"} />
                               <button
                                 type="submit"
-                                className="rounded-full border border-[#1a4d3d] px-3 py-1 text-xs font-semibold text-[#1a4d3d]"
+                                className="rounded-full border border-[#102B4E] px-3 py-1 text-xs font-semibold text-[#102B4E]"
                               >
                                 {quiz.enabled ? "Disable" : "Enable"}
                               </button>
@@ -343,7 +345,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                             </form>
                           </div>
                         ) : (
-                          <span className="text-xs text-[#33544b]">via environment</span>
+                          <span className="text-xs text-[#46607F]">via environment</span>
                         )}
                       </td>
                     </tr>
@@ -353,11 +355,11 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
             </table>
           </div>
 
-          <div className="rounded-2xl border border-[#d9c8b2] bg-[#f3e7d7] p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#1a4d3d]">Add a quiz</p>
+          <div className="rounded-2xl border border-[#DCE8F4] bg-[#E7F2FB] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#102B4E]">Add a quiz</p>
             <form action={addQuizAction} className="mt-4 space-y-4">
               <div>
-                <label htmlFor="title" className="mb-2 block text-sm font-medium text-[#17372d]">
+                <label htmlFor="title" className="mb-2 block text-sm font-medium text-[#102B4E]">
                   Quiz title
                 </label>
                 <input
@@ -365,12 +367,12 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                   name="title"
                   required
                   placeholder="Quiz 38"
-                  className="w-full rounded-xl border border-[#d9c8b2] bg-white px-4 py-3 text-[#17372d] outline-none focus:border-[#1a4d3d]"
+                  className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
                 />
               </div>
 
               <div>
-                <label htmlFor="formUrl" className="mb-2 block text-sm font-medium text-[#17372d]">
+                <label htmlFor="formUrl" className="mb-2 block text-sm font-medium text-[#102B4E]">
                   Google Form link
                 </label>
                 <input
@@ -378,12 +380,12 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                   name="formUrl"
                   type="url"
                   placeholder="https://docs.google.com/forms/d/..."
-                  className="w-full rounded-xl border border-[#d9c8b2] bg-white px-4 py-3 text-[#17372d] outline-none focus:border-[#1a4d3d]"
+                  className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
                 />
               </div>
 
               <div>
-                <label htmlFor="sheetUrl" className="mb-2 block text-sm font-medium text-[#17372d]">
+                <label htmlFor="sheetUrl" className="mb-2 block text-sm font-medium text-[#102B4E]">
                   Response sheet link
                 </label>
                 <input
@@ -391,16 +393,16 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                   name="sheetUrl"
                   required
                   placeholder="https://docs.google.com/spreadsheets/d/ID/edit?gid=123"
-                  className="w-full rounded-xl border border-[#d9c8b2] bg-white px-4 py-3 text-[#17372d] outline-none focus:border-[#1a4d3d]"
+                  className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
                 />
-                <p className="mt-2 text-xs leading-6 text-[#33544b]">
+                <p className="mt-2 text-xs leading-6 text-[#46607F]">
                   Open the responses tab in Google Sheets and copy the address bar link.
                 </p>
               </div>
 
               <button
                 type="submit"
-                className="w-full rounded-full bg-[#1a4d3d] px-6 py-3 text-sm font-semibold text-[#f9f3ea]"
+                className="w-full rounded-full bg-[#102B4E] px-6 py-3 text-sm font-semibold text-[#FFFFFF]"
               >
                 Add quiz
               </button>
@@ -416,17 +418,17 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
         </div>
       </section>
 
-      <div className="mt-10 overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-        <div className="border-b border-[#d9c8b2] p-5">
-          <h2 className="text-2xl font-semibold text-[#17372d]">Quiz completion matrix</h2>
-          <p className="mt-2 text-sm text-[#33544b]">
+      <div className="mt-10 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+        <div className="border-b border-[#DCE8F4] p-5">
+          <h2 className="text-2xl font-semibold text-[#102B4E]">Quiz completion matrix</h2>
+          <p className="mt-2 text-sm text-[#46607F]">
             {activeQuizzes.length} active quiz{activeQuizzes.length === 1 ? "" : "zes"} · {matrixRows.length} student
             {matrixRows.length === 1 ? "" : "s"} shown
           </p>
         </div>
         <div className="max-h-[32rem] overflow-auto">
-          <table className="min-w-full text-left text-sm text-[#33544b]">
-            <thead className="sticky top-0 bg-[#edf5ef] text-[#17372d]">
+          <table className="min-w-full text-left text-sm text-[#46607F]">
+            <thead className="sticky top-0 bg-[#F0F7FC] text-[#102B4E]">
               <tr>
                 <th className="px-4 py-3 font-semibold">Student</th>
                 {activeQuizzes.map((quiz) => (
@@ -447,17 +449,17 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                 matrixRows.map((student) => {
                   const completed = completedMap.get(student.id) ?? new Set<string>();
                   return (
-                    <tr key={`matrix-${student.rowIndex}`} className="border-t border-[#d9c8b2]">
+                    <tr key={`matrix-${student.rowIndex}`} className="border-t border-[#DCE8F4]">
                       <td className="whitespace-nowrap px-4 py-3">
                         {student.name || student.id}
-                        <span className="ml-2 text-xs text-[#1a4d3d]">{student.status}</span>
+                        <span className="ml-2 text-xs text-[#102B4E]">{student.status}</span>
                       </td>
                       {activeQuizzes.map((quiz) => (
                         <td key={`cell-${student.rowIndex}-${quiz.id}`} className="px-3 py-3 text-center">
                           {completed.has(quiz.id) ? (
                             <span className="font-semibold text-emerald-700">done</span>
                           ) : (
-                            <span className="text-[#9a8f80]">-</span>
+                            <span className="text-[#94A7BF]">-</span>
                           )}
                         </td>
                       ))}
@@ -470,13 +472,13 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
         </div>
       </div>
 
-      <div className="mt-10 overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-        <div className="border-b border-[#d9c8b2] p-5">
-          <h2 className="text-2xl font-semibold text-[#17372d]">All registered students</h2>
+      <div className="mt-10 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+        <div className="border-b border-[#DCE8F4] p-5">
+          <h2 className="text-2xl font-semibold text-[#102B4E]">All registered students</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm text-[#33544b]">
-            <thead className="bg-[#edf5ef] text-[#17372d]">
+          <table className="min-w-full text-left text-sm text-[#46607F]">
+            <thead className="bg-[#F0F7FC] text-[#102B4E]">
               <tr>
                 <th className="px-4 py-3 font-semibold">ID</th>
                 <th className="px-4 py-3 font-semibold">Name</th>
@@ -488,7 +490,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
             </thead>
             <tbody>
               {allStudents.map((student) => (
-                <tr key={`student-${student.rowIndex}`} className="border-t border-[#d9c8b2]">
+                <tr key={`student-${student.rowIndex}`} className="border-t border-[#DCE8F4]">
                   <td className="px-4 py-3">{student.id}</td>
                   <td className="px-4 py-3">{student.name || "Pending detail"}</td>
                   <td className="px-4 py-3">{student.number || "-"}</td>
@@ -505,13 +507,13 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-          <div className="border-b border-[#d9c8b2] p-5">
-            <h2 className="text-2xl font-semibold text-[#17372d]">Completed students</h2>
+        <div className="overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+          <div className="border-b border-[#DCE8F4] p-5">
+            <h2 className="text-2xl font-semibold text-[#102B4E]">Completed students</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-[#33544b]">
-              <thead className="bg-[#edf5ef] text-[#17372d]">
+            <table className="min-w-full text-left text-sm text-[#46607F]">
+              <thead className="bg-[#F0F7FC] text-[#102B4E]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Name</th>
                   <th className="px-4 py-3 font-semibold">Score</th>
@@ -520,7 +522,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
               </thead>
               <tbody>
                 {completedStudents.map((student) => (
-                  <tr key={`completed-${student.rowIndex}`} className="border-t border-[#d9c8b2]">
+                  <tr key={`completed-${student.rowIndex}`} className="border-t border-[#DCE8F4]">
                     <td className="px-4 py-3">{student.name}</td>
                     <td className="px-4 py-3">{student.latestScore || "-"}</td>
                     <td className="px-4 py-3">{student.latestSubmissionTimestamp || "-"}</td>
@@ -531,13 +533,13 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-          <div className="border-b border-[#d9c8b2] p-5">
-            <h2 className="text-2xl font-semibold text-[#17372d]">Pending students</h2>
+        <div className="overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+          <div className="border-b border-[#DCE8F4] p-5">
+            <h2 className="text-2xl font-semibold text-[#102B4E]">Pending students</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-[#33544b]">
-              <thead className="bg-[#edf5ef] text-[#17372d]">
+            <table className="min-w-full text-left text-sm text-[#46607F]">
+              <thead className="bg-[#F0F7FC] text-[#102B4E]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Name</th>
                   <th className="px-4 py-3 font-semibold">Number</th>
@@ -546,7 +548,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
               </thead>
               <tbody>
                 {pendingStudents.map((student) => (
-                  <tr key={`pending-${student.rowIndex}`} className="border-t border-[#d9c8b2]">
+                  <tr key={`pending-${student.rowIndex}`} className="border-t border-[#DCE8F4]">
                     <td className="px-4 py-3">{student.name || "-"}</td>
                     <td className="px-4 py-3">{student.number || "-"}</td>
                     <td className="px-4 py-3">{student.oldNumber || "-"}</td>
@@ -559,13 +561,13 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-          <div className="border-b border-[#d9c8b2] p-5">
-            <h2 className="text-2xl font-semibold text-[#17372d]">Review and problem records</h2>
+        <div className="overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+          <div className="border-b border-[#DCE8F4] p-5">
+            <h2 className="text-2xl font-semibold text-[#102B4E]">Review and problem records</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-[#33544b]">
-              <thead className="bg-[#edf5ef] text-[#17372d]">
+            <table className="min-w-full text-left text-sm text-[#46607F]">
+              <thead className="bg-[#F0F7FC] text-[#102B4E]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 font-semibold">Name</th>
@@ -575,7 +577,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
               </thead>
               <tbody>
                 {Array.from(problemRows.values()).map((record) => (
-                  <tr key={`problem-${record.id}`} className="border-t border-[#d9c8b2]">
+                  <tr key={`problem-${record.id}`} className="border-t border-[#DCE8F4]">
                     <td className="px-4 py-3">{record.id}</td>
                     <td className="px-4 py-3">{record.name}</td>
                     <td className="px-4 py-3">{record.reasons}</td>
@@ -587,13 +589,13 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4]">
-          <div className="border-b border-[#d9c8b2] p-5">
-            <h2 className="text-2xl font-semibold text-[#17372d]">Unmatched and invalid submissions</h2>
+        <div className="overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+          <div className="border-b border-[#DCE8F4] p-5">
+            <h2 className="text-2xl font-semibold text-[#102B4E]">Unmatched and invalid submissions</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-[#33544b]">
-              <thead className="bg-[#edf5ef] text-[#17372d]">
+            <table className="min-w-full text-left text-sm text-[#46607F]">
+              <thead className="bg-[#F0F7FC] text-[#102B4E]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Quiz</th>
                   <th className="px-4 py-3 font-semibold">Name</th>
@@ -605,7 +607,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
                 {[...unmatchedSubmissions, ...invalidSubmissions, ...duplicateSubmissions].map((submission) => (
                   <tr
                     key={`submission-${submission.quizId}-${submission.rowIndex}`}
-                    className="border-t border-[#d9c8b2]"
+                    className="border-t border-[#DCE8F4]"
                   >
                     <td className="px-4 py-3">{submission.quizName}</td>
                     <td className="px-4 py-3">{submission.name || "-"}</td>
@@ -619,9 +621,9 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
         </div>
       </div>
 
-      <div className="mt-10 rounded-[2rem] border border-[#d9c8b2] bg-[#fffaf4] p-5 text-sm text-[#33544b]">
+      <div className="mt-10 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-5 text-sm text-[#46607F]">
         Data is read live from the registration sheet and every configured quiz response sheet.
-        <Link href="/student-portal" className="ml-2 font-semibold text-[#1a4d3d] underline">
+        <Link href="/student-portal" className="ml-2 font-semibold text-[#102B4E] underline">
           Student portal
         </Link>
       </div>

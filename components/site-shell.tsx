@@ -1,88 +1,101 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Logo } from "@/components/logo";
+import { SiteHeader } from "@/components/site-header";
 import { siteConfig } from "@/lib/site-config";
-
-const navItems = [
-  { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-  { href: "/student-portal", label: "Student Portal" },
-];
 
 export function SiteShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="sticky top-0 z-50 border-b border-[#d8c3a3]/80 bg-[#f8f1e7]/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="Home page">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#1a4d3d] bg-[#1a4d3d] text-sm font-semibold text-[#f9f3ea]">
-              {siteConfig.shortName}
-            </span>
+    <div className="flex min-h-screen flex-col bg-white text-[#102B4E]">
+      <SiteHeader />
+
+      <main className="flex-1">{children}</main>
+
+      <footer className="section-dark relative overflow-hidden bg-[#102B4E] text-white">
+        <div className="pattern-dark absolute inset-0 opacity-70" aria-hidden="true" />
+
+        <div className="relative mx-auto max-w-6xl px-4 pt-14 pb-8 sm:px-6 lg:px-8">
+          <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1.1fr_1.3fr]">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#1a4d3d]">
-                {siteConfig.instituteName}
+              <Logo tone="light" />
+              <p className="mt-5 max-w-sm text-sm leading-7 text-white/70">
+                {siteConfig.tagline}
               </p>
             </div>
-          </Link>
 
-          <nav className="hidden items-center gap-6 text-sm font-medium text-[#1a4d3d] md:flex">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="transition-colors hover:text-[#2c6a5b]"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#38BDF8]">
+                Quick Links
+              </p>
+              <ul className="mt-4 space-y-3 text-sm">
+                {siteConfig.navigation.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className="text-white/75 transition-colors hover:text-[#38BDF8]"
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-          <Link
-            href="/student-portal"
-            className="rounded-full bg-[#1a4d3d] px-4 py-2 text-sm font-semibold text-[#f9f3ea] shadow-sm transition-opacity hover:opacity-90"
-          >
-            Student Portal
-          </Link>
-        </div>
-      </header>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#38BDF8]">
+                Programs
+              </p>
+              <ul className="mt-4 space-y-3 text-sm">
+                {siteConfig.courses.map((course) => (
+                  <li key={course.title}>
+                    <Link
+                      href={course.enquiryHref}
+                      className="text-white/75 transition-colors hover:text-[#38BDF8]"
+                    >
+                      {course.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-      <main>{children}</main>
-
-      <footer className="border-t border-[#d8c3a3] bg-[#f3e7d7] text-[#183a2f]">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.8fr] lg:px-8">
-          <div>
-            <p className="text-lg font-semibold tracking-[0.12em] text-[#1a4d3d]">
-              {siteConfig.instituteName}
-            </p>
-            <p className="mt-3 max-w-md text-sm leading-7 text-[#39574f]">
-              {siteConfig.tagline}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#1a4d3d]">
-              Contact
-            </p>
-            <ul className="mt-3 space-y-2 text-sm text-[#39574f]">
-              <li>{siteConfig.contact.phone}</li>
-              <li>{siteConfig.contact.email}</li>
-              <li>{siteConfig.contact.address}</li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#1a4d3d]">
-              Quick Links
-            </p>
-            <ul className="mt-3 space-y-2 text-sm text-[#39574f]">
-              {navItems.map((item) => (
-                <li key={item.href}>
-                  <Link href={item.href} className="transition-colors hover:text-[#224d42]">
-                    {item.label}
-                  </Link>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#38BDF8]">
+                Contact
+              </p>
+              <ul className="mt-4 space-y-3 text-sm text-white/75">
+                <li>
+                  <a
+                    href={siteConfig.contact.phoneHref}
+                    className="transition-colors hover:text-[#38BDF8]"
+                  >
+                    {siteConfig.contact.phone}
+                  </a>
                 </li>
-              ))}
-            </ul>
+                <li>
+                  <a
+                    href={siteConfig.contact.emailHref}
+                    className="break-all transition-colors hover:text-[#38BDF8]"
+                  >
+                    {siteConfig.contact.email}
+                  </a>
+                </li>
+                <li className="leading-6">
+                  {siteConfig.contact.address}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-12 flex flex-col gap-3 border-t border-white/12 pt-6 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
+            <p>Copyright © 2026 Eilm Academy. All rights reserved.</p>
+            <Link
+              href="/student-portal"
+              className="font-semibold text-white/75 transition-colors hover:text-[#38BDF8]"
+            >
+              Student Portal
+            </Link>
           </div>
         </div>
       </footer>
