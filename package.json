@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify": "tsx scripts/verify-matching.ts",
+    "inspect": "tsx scripts/inspect-sheets.ts"
   },
   "dependencies": {
+    "googleapis": "^183.0.0",
+    "libphonenumber-js": "^1.13.14",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -21,6 +25,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
