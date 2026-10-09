@@ -21,6 +21,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") {
     return;
   }
+  // Node's `ReadableByteStreamController.enqueue()` transfers (detaches) the
+  // ArrayBuffer of every chunk it accepts, and a Buffer taken from Node's
+  // 64 KiB pool is not detachable: the transfer throws
+  // `TypeError: ArrayBuffer is not detachable and could not be cloned.`
+  // Next writes the value of a `"use cache"` function into such a byte stream,
+  // so filling the registrations cache failed on every login. Pooling is a
+  // micro-optimisation; turning it off makes every Buffer detachable.
+  Buffer.poolSize = 0;
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return;
   }

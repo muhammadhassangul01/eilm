@@ -27,7 +27,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-[#102B4E]/10 bg-white/92 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <Link href="/" aria-label="Eilm Academy home" className="shrink-0">
-          <Logo />
+          <Logo priority sizes="112px" className="h-12 w-auto sm:h-14" />
         </Link>
 
         <nav

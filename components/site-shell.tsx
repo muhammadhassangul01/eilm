@@ -18,7 +18,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="relative mx-auto max-w-6xl px-4 pt-14 pb-8 sm:px-6 lg:px-8">
           <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1.1fr_1.3fr]">
             <div>
-              <Logo tone="light" />
+              <span className="inline-flex rounded-2xl bg-white p-3">
+                <Logo sizes="112px" className="h-16 w-auto" />
+              </span>
               <p className="mt-5 max-w-sm text-sm leading-7 text-white/70">
                 {siteConfig.tagline}
               </p>
