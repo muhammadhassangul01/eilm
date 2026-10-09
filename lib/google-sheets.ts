@@ -36,13 +36,21 @@ function getGoogleCredentials() {
   );
 }
 
-function getSheetsClient() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: getGoogleCredentials(),
-    scopes: [SPREADSHEET_SCOPE],
-  });
+// Reused for the lifetime of the process. Constructing a GoogleAuth per call
+// means every request mints its own service-account token, which measured at
+// ~300-700ms per Sheets API call.
+let sheetsClient: ReturnType<typeof google.sheets> | null = null;
 
-  return google.sheets({ version: "v4", auth });
+function getSheetsClient() {
+  if (!sheetsClient) {
+    const auth = new google.auth.GoogleAuth({
+      credentials: getGoogleCredentials(),
+      scopes: [SPREADSHEET_SCOPE],
+    });
+    sheetsClient = google.sheets({ version: "v4", auth });
+  }
+
+  return sheetsClient;
 }
 
 function quoteTabName(title: string): string {
@@ -128,16 +136,17 @@ function parseA1Cell(cell: string): { column: number; row: number } {
   return { column: column - 1, row: Number(match[2]) };
 }
 
-export async function listSheetTabs(spreadsheetId: string): Promise<SheetTab[]> {
-  if (!spreadsheetId) {
-    throw new Error("Spreadsheet ID is required.");
-  }
+// Tab titles and gids change rarely, but resolving them costs a full
+// spreadsheets.get round trip on every sheet read. Memoize per spreadsheet and
+// drop the entry whenever the app creates a tab or a lookup misses, so a tab
+// added outside the app is picked up on the next attempt.
+const tabListCache = new Map<string, Promise<SheetTab[]>>();
 
-  const dir = fixtureDir();
-  if (dir) {
-    return readFixture(dir, spreadsheetId).tabs.map(({ title, gid }) => ({ title, gid }));
-  }
+function invalidateTabList(spreadsheetId: string): void {
+  tabListCache.delete(spreadsheetId);
+}
 
+async function fetchSheetTabs(spreadsheetId: string): Promise<SheetTab[]> {
   const sheets = getSheetsClient();
   const metadata = await sheets.spreadsheets.get({
     spreadsheetId,
@@ -152,29 +161,63 @@ export async function listSheetTabs(spreadsheetId: string): Promise<SheetTab[]> 
     .filter((tab) => tab.title);
 }
 
+export async function listSheetTabs(spreadsheetId: string): Promise<SheetTab[]> {
+  if (!spreadsheetId) {
+    throw new Error("Spreadsheet ID is required.");
+  }
+
+  const dir = fixtureDir();
+  if (dir) {
+    return readFixture(dir, spreadsheetId).tabs.map(({ title, gid }) => ({ title, gid }));
+  }
+
+  const cached = tabListCache.get(spreadsheetId);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = fetchSheetTabs(spreadsheetId);
+  tabListCache.set(spreadsheetId, pending);
+  pending.catch(() => {
+    if (tabListCache.get(spreadsheetId) === pending) {
+      tabListCache.delete(spreadsheetId);
+    }
+  });
+
+  return pending;
+}
+
 export async function resolveTab(spreadsheetId: string, tab: string): Promise<SheetTab> {
-  const tabs = await listSheetTabs(spreadsheetId);
   const target = String(tab ?? "").trim();
 
   if (!target) {
     throw new Error(`No tab configured for spreadsheet ${spreadsheetId}.`);
   }
 
-  const byGid = /^\d+$/.test(target) ? tabs.find((entry) => entry.gid === target) : undefined;
-  if (byGid) {
-    return byGid;
+  const find = (tabs: SheetTab[]) => {
+    const byGid = /^\d+$/.test(target) ? tabs.find((entry) => entry.gid === target) : undefined;
+    return byGid ?? tabs.find((entry) => entry.title.toLowerCase() === target.toLowerCase());
+  };
+
+  let tabs = await listSheetTabs(spreadsheetId);
+  let resolved = find(tabs);
+
+  if (!resolved) {
+    // The memoized list may predate a tab created outside the app.
+    invalidateTabList(spreadsheetId);
+    tabs = await listSheetTabs(spreadsheetId);
+    resolved = find(tabs);
   }
 
-  const byTitle = tabs.find((entry) => entry.title.toLowerCase() === target.toLowerCase());
-  if (byTitle) {
-    return byTitle;
+  if (!resolved) {
+    throw new Error(
+      `Unable to find tab "${target}" in spreadsheet ${spreadsheetId}. Available tabs: ${tabs
+        .map((entry) => `${entry.title} (gid ${entry.gid})`)
+        .join(", ")}.`,
+    );
   }
 
-  throw new Error(
-    `Unable to find tab "${target}" in spreadsheet ${spreadsheetId}. Available tabs: ${tabs
-      .map((entry) => `${entry.title} (gid ${entry.gid})`)
-      .join(", ")}.`,
-  );
+  return resolved;
 }
 
 export async function readSheetRows(spreadsheetId: string, tab: string): Promise<string[][]> {
@@ -285,6 +328,8 @@ export async function createSheetTab(spreadsheetId: string, title: string): Prom
   });
 
   const properties = response.data.replies?.[0]?.addSheet?.properties;
+
+  invalidateTabList(spreadsheetId);
 
   return {
     title: String(properties?.title ?? title),

@@ -81,16 +81,78 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
     );
   }
 
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-6 shadow-sm sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Admin dashboard</p>
+          <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Student and quiz tracking</h1>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="/api/admin/export?type=json"
+            className="rounded-full border border-[#102B4E] bg-transparent px-4 py-2 text-sm font-semibold text-[#102B4E]"
+          >
+            Export JSON
+          </a>
+          <form action={logoutAdmin}>
+            <button
+              type="submit"
+              className="rounded-full border border-[#102B4E] bg-transparent px-4 py-2 text-sm font-semibold text-[#102B4E]"
+            >
+              Log out
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-5 shadow-sm">
+        <form method="GET" className="flex flex-col gap-3 md:flex-row">
+          <input
+            name="search"
+            defaultValue={searchQuery}
+            placeholder="Search by name, ID, number, status, quiz, or reason"
+            className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
+          />
+          <button type="submit" className="rounded-full bg-[#102B4E] px-5 py-3 text-sm font-semibold text-[#FFFFFF]">
+            Search
+          </button>
+        </form>
+      </div>
+
+      <Suspense fallback={<DataLoading label="Loading dashboard data" />}>
+        <AdminDashboard
+          searchQuery={searchQuery}
+          messages={{ errorMessage, addedMessage, updatedMessage, removedMessage }}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+// Behind its own boundary so the header and search box render before the
+// sheet-backed tables stream in.
+async function AdminDashboard({
+  searchQuery,
+  messages,
+}: {
+  searchQuery: string;
+  messages: {
+    errorMessage: string;
+    addedMessage: string;
+    updatedMessage: string;
+    removedMessage: string;
+  };
+}) {
+  const { errorMessage, addedMessage, updatedMessage, removedMessage } = messages;
   const snapshot = await getPortalSnapshot();
 
   if (snapshot.error) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-[#DCE8F4] bg-[#FFFFFF] p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Data error</p>
-          <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Unable to load student data.</h1>
-          <p className="mt-4 text-sm leading-7 text-[#46607F]">{snapshot.error}</p>
-        </div>
+      <div className="mt-6 rounded-3xl border border-[#DCE8F4] bg-[#FFFFFF] p-8 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Data error</p>
+        <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Unable to load student data.</h1>
+        <p className="mt-4 text-sm leading-7 text-[#46607F]">{snapshot.error}</p>
       </div>
     );
   }
@@ -165,30 +227,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
   snapshot.warnings.forEach((warning) => notices.push({ tone: "warn", text: warning }));
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-6 shadow-sm sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#102B4E]">Admin dashboard</p>
-          <h1 className="mt-3 text-3xl font-bold text-[#102B4E]">Student and quiz tracking</h1>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <a
-            href="/api/admin/export?type=json"
-            className="rounded-full border border-[#102B4E] bg-transparent px-4 py-2 text-sm font-semibold text-[#102B4E]"
-          >
-            Export JSON
-          </a>
-          <form action={logoutAdmin}>
-            <button
-              type="submit"
-              className="rounded-full border border-[#102B4E] bg-transparent px-4 py-2 text-sm font-semibold text-[#102B4E]"
-            >
-              Log out
-            </button>
-          </form>
-        </div>
-      </div>
-
+    <>
       {notices.length > 0 ? (
         <div className="mt-6 grid gap-3">
           {notices.map((notice, index) => (
@@ -205,20 +244,6 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
           ))}
         </div>
       ) : null}
-
-      <div className="mt-6 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-5 shadow-sm">
-        <form method="GET" className="flex flex-col gap-3 md:flex-row">
-          <input
-            name="search"
-            defaultValue={searchQuery}
-            placeholder="Search by name, ID, number, status, quiz, or reason"
-            className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
-          />
-          <button type="submit" className="rounded-full bg-[#102B4E] px-5 py-3 text-sm font-semibold text-[#FFFFFF]">
-            Search
-          </button>
-        </form>
-      </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
@@ -627,6 +652,6 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
           Student portal
         </Link>
       </div>
-    </div>
+    </>
   );
 }

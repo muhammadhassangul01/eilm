@@ -1,9 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { updateTag } from "next/cache";
 
 import { getAdminSession } from "@/lib/auth";
 import { addRegistryEntry, deleteRegistryEntry, setRegistryEntryEnabled } from "@/lib/quiz-registry";
+
+const PORTAL_CACHE_TAG = "portal";
 
 function registryUrl(params: Record<string, string>): string {
   const search = new URLSearchParams({ section: "registry", ...params });
@@ -39,6 +42,7 @@ export async function addQuizAction(formData: FormData) {
     redirect(registryUrl({ error: result.error }));
   }
 
+  updateTag(PORTAL_CACHE_TAG);
   redirect(registryUrl({ added: title.trim() }));
 }
 
@@ -59,6 +63,7 @@ export async function toggleQuizAction(formData: FormData) {
     redirect(registryUrl({ error: result.error }));
   }
 
+  updateTag(PORTAL_CACHE_TAG);
   redirect(registryUrl({ updated: "1" }));
 }
 
@@ -78,5 +83,6 @@ export async function deleteQuizAction(formData: FormData) {
     redirect(registryUrl({ error: result.error }));
   }
 
+  updateTag(PORTAL_CACHE_TAG);
   redirect(registryUrl({ removed: "1" }));
 }

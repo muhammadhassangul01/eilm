@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getPortalSnapshot, matchStudentLogin } from "@/lib/student-data";
+import { getRegistrations, matchStudentLogin } from "@/lib/student-data";
 
 export const STUDENT_SESSION_COOKIE = "eilm_student_session";
 export const ADMIN_SESSION_COOKIE = "eilm_admin_session";
@@ -73,12 +73,12 @@ export async function handleStudentLogin(formData: FormData) {
   const number = String(formData.get("number") ?? "").trim();
   const countryCode = String(formData.get("countryCode") ?? "PK").trim();
 
-  const snapshot = await getPortalSnapshot();
-  if (snapshot.error) {
-    redirect(`/student-portal?error=${encodeURIComponent(snapshot.error)}`);
+  const { registrations, error } = await getRegistrations();
+  if (error) {
+    redirect(`/student-portal?error=${encodeURIComponent(error)}`);
   }
 
-  const result = matchStudentLogin(snapshot.registrations, { name, number, countryCode });
+  const result = matchStudentLogin(registrations, { name, number, countryCode });
   if (!result.ok) {
     redirect(`/student-portal?error=${encodeURIComponent(result.reason)}`);
   }

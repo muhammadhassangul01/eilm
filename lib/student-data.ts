@@ -1,5 +1,5 @@
 import { parsePhoneNumber, type CountryCode } from "libphonenumber-js/max";
-import { connection } from "next/server";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { readSheetRows } from "@/lib/google-sheets";
 import { INVISIBLE_CHARACTERS, normalizeHeaderValue, normalizeName, normalizeText } from "@/lib/normalize";
@@ -22,7 +22,6 @@ export type RegistrationRecord = {
   oldNumber: string;
   phoneNumbers: string[];
   normalizedName: string;
-  row: Record<string, string>;
   reviewReasons: string[];
   status: RegistrationStatus;
   matchedSubmissionIds: string[];
@@ -37,11 +36,8 @@ export type QuizSubmission = {
   name: string;
   phone: string;
   normalizedPhone: string | null;
-  raw: Record<string, string>;
   matchStatus: QuizMatchStatus;
   matchedRegistrationIds: string[];
-  matchedRegistrations: Array<{ id: string; name: string; phone: string }>;
-  allAnswerFields: Record<string, string>;
   quizId: string;
   quizName: string;
 };
@@ -77,6 +73,20 @@ const EMPTY_METRICS: PortalMetrics = {
   invalidSubmissions: 0,
   repeatedSubmissionNumbers: 0,
 };
+
+// Shared by every portal/admin/export read. Invalidated from server actions
+// after a registry mutation so an admin always sees their own change.
+//
+// `revalidate` keeps the snapshot at most a minute old (Next serves the cached
+// copy and refreshes it in the background). `expire` is deliberately long: it
+// is the hard cutoff, and once it passes with no traffic the next request has
+// to regenerate synchronously, which costs a full Google Sheets round trip.
+const PORTAL_CACHE_TAG = "portal";
+const PORTAL_CACHE_LIFE = {
+  stale: 300,
+  revalidate: 60,
+  expire: 604800,
+} as const;
 
 const SUPPORTED_COUNTRIES = new Set(["PK", "GB", "DE"]);
 const DIAL_CODE_TO_COUNTRY: Record<string, string> = {
@@ -228,10 +238,6 @@ function createRegistrationData(rows: string[][]): RegistrationRecord[] {
       oldNumber: normalizeText(oldNumberRaw),
       phoneNumbers,
       normalizedName: normalizeName(nameRaw),
-      row: headers.reduce<Record<string, string>>((acc, header, headerIndex) => {
-        acc[header] = row[headerIndex] ?? "";
-        return acc;
-      }, {}),
       reviewReasons: [],
       status: "pending" as RegistrationStatus,
       matchedSubmissionIds: [],
@@ -298,11 +304,6 @@ function createQuizSubmissions(
   });
 
   return rows.slice(1).map((row, index) => {
-    const rawRecord = headers.reduce<Record<string, string>>((acc, header, headerIndex) => {
-      acc[header] = row[headerIndex] ?? "";
-      return acc;
-    }, {});
-
     const phoneValue = valueByAliases(
       row,
       [
@@ -342,17 +343,6 @@ function createQuizSubmissions(
 
     const matchedRegistrationIds =
       matchStatus === "matched" ? resolvedCandidates.map((candidate) => candidate.id) : [];
-    const matchedRegistrations = allCandidates.map((candidate) => ({
-      id: candidate.id,
-      name: candidate.name,
-      phone: candidate.phoneNumbers[0] || candidate.number,
-    }));
-
-    const allAnswerFields = headers.reduce<Record<string, string>>((acc, header, headerIndex) => {
-      const value = row[headerIndex] ?? "";
-      acc[header] = value;
-      return acc;
-    }, {});
 
     return {
       rowIndex: index + 2,
@@ -361,11 +351,8 @@ function createQuizSubmissions(
       name: normalizeText(nameValue),
       phone: normalizeText(phoneValue),
       normalizedPhone,
-      raw: rawRecord,
       matchStatus,
       matchedRegistrationIds,
-      matchedRegistrations,
-      allAnswerFields,
       quizId: quizDefinition.id,
       quizName: quizDefinition.name,
     };
@@ -409,117 +396,157 @@ async function loadQuizDefinitions(warnings: string[]): Promise<{
   return { quizzes: [], registrySource: "none" };
 }
 
-export async function getPortalSnapshot(): Promise<PortalSnapshot> {
-  await connection();
+// The sheet read itself. Not `"use cache"`: a cached function nested inside
+// another cached one is re-resolved while the outer payload is deserialized,
+// and Next regenerates a stale *nested* entry in the foreground — which blocks
+// the very request that would otherwise be served from the outer stale copy.
+// Only top-level entries get serve-stale + background revalidation.
+async function readRegistrations(): Promise<RegistrationRecord[]> {
+  const registrationSheetId = process.env.REGISTRATION_SHEET_ID;
+  const registrationTabId = process.env.REGISTRATION_TAB_ID ?? "0";
+
+  if (!registrationSheetId) {
+    throw new Error(
+      "Missing Google Sheets environment variables: set REGISTRATION_SHEET_ID and REGISTRATION_TAB_ID.",
+    );
+  }
+
+  const rows = await readSheetRows(registrationSheetId, registrationTabId);
+  return createRegistrationData(rows);
+}
+
+async function loadRegistrations(): Promise<RegistrationRecord[]> {
+  "use cache";
+  cacheLife(PORTAL_CACHE_LIFE);
+  cacheTag(PORTAL_CACHE_TAG);
+
+  return readRegistrations();
+}
+
+// Login only needs the registration sheet, not every quiz response sheet.
+export async function getRegistrations(): Promise<{
+  registrations: RegistrationRecord[];
+  error?: string;
+}> {
+  try {
+    return { registrations: await loadRegistrations() };
+  } catch (error) {
+    return { registrations: [], error: messageOf(error) };
+  }
+}
+
+async function loadPortalSnapshot(): Promise<PortalSnapshot> {
+  "use cache";
+  cacheLife(PORTAL_CACHE_LIFE);
+  cacheTag(PORTAL_CACHE_TAG);
 
   const warnings: string[] = [];
 
-  try {
-    const registrationSheetId = process.env.REGISTRATION_SHEET_ID;
-    const registrationTabId = process.env.REGISTRATION_TAB_ID ?? "0";
+  // The quiz registry and the registration sheet do not depend on each other,
+  // so read them together instead of one after the other.
+  const [{ quizzes, registrySource }, registrations] = await Promise.all([
+    loadQuizDefinitions(warnings),
+    readRegistrations(),
+  ]);
+  const activeQuizzes = getEnabledQuizzes(quizzes);
 
-    if (!registrationSheetId) {
-      throw new Error(
-        "Missing Google Sheets environment variables: set REGISTRATION_SHEET_ID and REGISTRATION_TAB_ID.",
-      );
-    }
-
-    const { quizzes, registrySource } = await loadQuizDefinitions(warnings);
-    const activeQuizzes = getEnabledQuizzes(quizzes);
-
-    const registrationRows = await readSheetRows(registrationSheetId, registrationTabId);
-    const registrations = createRegistrationData(registrationRows);
-
-    const quizResults = await Promise.all(
-      activeQuizzes.map(async (quiz) => {
-        if (!quiz.responseSheetId || !quiz.tabId) {
-          if (quiz.formUrl) {
-            warnings.push(`"${quiz.name}" has no response sheet configured yet.`);
-          } else {
-            warnings.push(`"${quiz.name}" has no response sheet or form link configured yet.`);
-          }
-          return [] as QuizSubmission[];
+  const quizResults = await Promise.all(
+    activeQuizzes.map(async (quiz) => {
+      if (!quiz.responseSheetId || !quiz.tabId) {
+        if (quiz.formUrl) {
+          warnings.push(`"${quiz.name}" has no response sheet configured yet.`);
+        } else {
+          warnings.push(`"${quiz.name}" has no response sheet or form link configured yet.`);
         }
-
-        try {
-          const rows = await readSheetRows(quiz.responseSheetId, quiz.tabId);
-          return createQuizSubmissions(rows, registrations, quiz);
-        } catch (error) {
-          warnings.push(`Responses for "${quiz.name}" could not be read: ${messageOf(error)}`);
-          return [] as QuizSubmission[];
-        }
-      }),
-    );
-
-    const submissions = quizResults.flat();
-
-    const matchedSubmissions = submissions.filter((submission) => submission.matchStatus === "matched");
-    const studentCompletedMap = new Map<string, QuizSubmission[]>();
-
-    matchedSubmissions.forEach((submission) => {
-      submission.matchedRegistrationIds.forEach((studentId) => {
-        const bucket = studentCompletedMap.get(studentId) ?? [];
-        bucket.push(submission);
-        studentCompletedMap.set(studentId, bucket);
-      });
-    });
-
-    registrations.forEach((registration) => {
-      const completedMatches = studentCompletedMap.get(registration.id) ?? [];
-      if (completedMatches.length > 0) {
-        registration.status = "completed";
-        registration.matchedSubmissionIds = completedMatches.map(
-          (submission) => `${submission.quizId}:${submission.rowIndex}`,
-        );
-        const latest = completedMatches
-          .filter((submission) => submission.timestamp)
-          .sort((a, b) => compareSubmissionTimestamps(a.timestamp, b.timestamp))[0];
-
-        registration.latestSubmissionTimestamp = latest?.timestamp || undefined;
-        registration.latestScore = latest?.score || undefined;
-      } else if (registration.reviewReasons.length > 0) {
-        registration.status = "review_required";
-      } else {
-        registration.status = "pending";
+        return [] as QuizSubmission[];
       }
+
+      try {
+        const rows = await readSheetRows(quiz.responseSheetId, quiz.tabId);
+        return createQuizSubmissions(rows, registrations, quiz);
+      } catch (error) {
+        warnings.push(`Responses for "${quiz.name}" could not be read: ${messageOf(error)}`);
+        return [] as QuizSubmission[];
+      }
+    }),
+  );
+
+  const submissions = quizResults.flat();
+
+  const matchedSubmissions = submissions.filter((submission) => submission.matchStatus === "matched");
+  const studentCompletedMap = new Map<string, QuizSubmission[]>();
+
+  matchedSubmissions.forEach((submission) => {
+    submission.matchedRegistrationIds.forEach((studentId) => {
+      const bucket = studentCompletedMap.get(studentId) ?? [];
+      bucket.push(submission);
+      studentCompletedMap.set(studentId, bucket);
     });
+  });
 
-    const repeatedSubmissionNumbers = Array.from(
-      submissions.reduce((accumulator, submission) => {
-        if (!submission.normalizedPhone) {
-          return accumulator;
-        }
+  registrations.forEach((registration) => {
+    const completedMatches = studentCompletedMap.get(registration.id) ?? [];
+    if (completedMatches.length > 0) {
+      registration.status = "completed";
+      registration.matchedSubmissionIds = completedMatches.map(
+        (submission) => `${submission.quizId}:${submission.rowIndex}`,
+      );
+      const latest = completedMatches
+        .filter((submission) => submission.timestamp)
+        .sort((a, b) => compareSubmissionTimestamps(a.timestamp, b.timestamp))[0];
 
-        accumulator.set(submission.normalizedPhone, (accumulator.get(submission.normalizedPhone) ?? 0) + 1);
+      registration.latestSubmissionTimestamp = latest?.timestamp || undefined;
+      registration.latestScore = latest?.score || undefined;
+    } else if (registration.reviewReasons.length > 0) {
+      registration.status = "review_required";
+    } else {
+      registration.status = "pending";
+    }
+  });
+
+  const repeatedSubmissionNumbers = Array.from(
+    submissions.reduce((accumulator, submission) => {
+      if (!submission.normalizedPhone) {
         return accumulator;
-      }, new Map<string, number>()).values(),
-    ).filter((count) => count > 1).length;
+      }
 
-    const metrics: PortalMetrics = {
-      totalRegistrationRows: registrations.length,
-      totalQuizSubmissions: submissions.length,
-      uniqueCompletedStudents: new Set(
-        matchedSubmissions.flatMap((submission) => submission.matchedRegistrationIds),
-      ).size,
-      pendingStudents: registrations.filter((registration) => registration.status === "pending").length,
-      registrationsRequiringReview: registrations.filter(
-        (registration) => registration.status === "review_required",
-      ).length,
-      unmatchedSubmissions: submissions.filter((submission) => submission.matchStatus === "not_registered")
-        .length,
-      invalidSubmissions: submissions.filter((submission) => submission.matchStatus === "invalid_phone")
-        .length,
-      repeatedSubmissionNumbers,
-    };
+      accumulator.set(submission.normalizedPhone, (accumulator.get(submission.normalizedPhone) ?? 0) + 1);
+      return accumulator;
+    }, new Map<string, number>()).values(),
+  ).filter((count) => count > 1).length;
 
-    return {
-      registrations,
-      submissions,
-      metrics,
-      quizDefinitions: quizzes,
-      registrySource,
-      warnings,
-    };
+  const metrics: PortalMetrics = {
+    totalRegistrationRows: registrations.length,
+    totalQuizSubmissions: submissions.length,
+    uniqueCompletedStudents: new Set(
+      matchedSubmissions.flatMap((submission) => submission.matchedRegistrationIds),
+    ).size,
+    pendingStudents: registrations.filter((registration) => registration.status === "pending").length,
+    registrationsRequiringReview: registrations.filter(
+      (registration) => registration.status === "review_required",
+    ).length,
+    unmatchedSubmissions: submissions.filter((submission) => submission.matchStatus === "not_registered")
+      .length,
+    invalidSubmissions: submissions.filter((submission) => submission.matchStatus === "invalid_phone")
+      .length,
+    repeatedSubmissionNumbers,
+  };
+
+  return {
+    registrations,
+    submissions,
+    metrics,
+    quizDefinitions: quizzes,
+    registrySource,
+    warnings,
+  };
+}
+
+// Uncached wrapper: a Google Sheets failure must never be frozen into the
+// cache, so it is turned into a fresh error snapshot on every request.
+export async function getPortalSnapshot(): Promise<PortalSnapshot> {
+  try {
+    return await loadPortalSnapshot();
   } catch (error) {
     return {
       registrations: [],
@@ -527,7 +554,7 @@ export async function getPortalSnapshot(): Promise<PortalSnapshot> {
       metrics: EMPTY_METRICS,
       quizDefinitions: [],
       registrySource: "none",
-      warnings,
+      warnings: [],
       error: messageOf(error),
     };
   }
