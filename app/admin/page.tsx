@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { DataLoading } from "@/components/data-loading";
 import { handleAdminLogin, getAdminSession, logoutAdmin } from "@/lib/auth";
-import { deleteQuizAction, toggleQuizAction, addQuizAction } from "@/lib/quiz-actions";
+import { deleteQuizAction, toggleQuizAction, addQuizAction, moveQuizAction } from "@/lib/quiz-actions";
 import { getEnabledQuizzes } from "@/lib/quiz-config";
 import { buildCompletedQuizMap, compareSubmissionTimestamps, getPortalSnapshot } from "@/lib/student-data";
 
@@ -13,6 +13,7 @@ type AdminSearchParams = {
   error?: string | string[];
   added?: string | string[];
   updated?: string | string[];
+  moved?: string | string[];
   removed?: string | string[];
   section?: string | string[];
 };
@@ -41,6 +42,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
   const errorMessage = first(params.error);
   const addedMessage = first(params.added);
   const updatedMessage = first(params.updated);
+  const movedMessage = first(params.moved);
   const removedMessage = first(params.removed);
 
   const adminSession = await getAdminSession();
@@ -127,7 +129,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
         <AdminDashboard
           searchQuery={searchQuery}
           selectedQuizId={selectedQuizId}
-          messages={{ errorMessage, addedMessage, updatedMessage, removedMessage }}
+          messages={{ errorMessage, addedMessage, updatedMessage, movedMessage, removedMessage }}
         />
       </Suspense>
     </div>
@@ -147,10 +149,11 @@ async function AdminDashboard({
     errorMessage: string;
     addedMessage: string;
     updatedMessage: string;
+    movedMessage: string;
     removedMessage: string;
   };
 }) {
-  const { errorMessage, addedMessage, updatedMessage, removedMessage } = messages;
+  const { errorMessage, addedMessage, updatedMessage, movedMessage, removedMessage } = messages;
   const snapshot = await getPortalSnapshot();
 
   if (snapshot.error) {
@@ -245,15 +248,43 @@ async function AdminDashboard({
   const registryQuizzes = snapshot.quizDefinitions.filter((quiz) => quiz.source === "registry");
   const envQuizzes = snapshot.quizDefinitions.filter((quiz) => quiz.source !== "registry");
 
-  const submissionStats = new Map<string, { responses: number; matched: number }>();
+  const submissionStats = new Map<
+    string,
+    { responses: number; matched: number; students: Set<string>; scores: number[]; latestTimestamp: string }
+  >();
   snapshot.submissions.forEach((submission) => {
-    const stat = submissionStats.get(submission.quizId) ?? { responses: 0, matched: 0 };
+    const stat = submissionStats.get(submission.quizId) ?? {
+      responses: 0,
+      matched: 0,
+      students: new Set<string>(),
+      scores: [],
+      latestTimestamp: "",
+    };
     stat.responses += 1;
     if (submission.matchStatus === "matched") {
       stat.matched += 1;
+      submission.matchedRegistrationIds.forEach((id) => stat.students.add(id));
+    }
+    const numericScore = Number.parseFloat(submission.score.replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(numericScore)) {
+      stat.scores.push(numericScore);
+    }
+    if (
+      submission.timestamp &&
+      (!stat.latestTimestamp || compareSubmissionTimestamps(stat.latestTimestamp, submission.timestamp) < 0)
+    ) {
+      stat.latestTimestamp = submission.timestamp;
     }
     submissionStats.set(submission.quizId, stat);
   });
+
+  const formatAverageScore = (stat?: { scores: number[] }) => {
+    if (!stat || stat.scores.length === 0) {
+      return "-";
+    }
+    const average = stat.scores.reduce((sum, value) => sum + value, 0) / stat.scores.length;
+    return Number.isInteger(average) ? String(average) : average.toFixed(1);
+  };
 
   const adminHref = (quizId?: string) => {
     const search = new URLSearchParams();
@@ -273,6 +304,9 @@ async function AdminDashboard({
   }
   if (updatedMessage) {
     notices.push({ tone: "ok", text: "The quiz registry was updated." });
+  }
+  if (movedMessage) {
+    notices.push({ tone: "ok", text: "Quiz order updated." });
   }
   if (removedMessage) {
     notices.push({ tone: "ok", text: "The quiz was removed from the registry." });
@@ -357,6 +391,69 @@ async function AdminDashboard({
             <p className="mt-3 text-2xl font-bold text-[#102B4E]">{metric.value}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-10 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+        <div className="border-b border-[#DCE8F4] p-5">
+          <h2 className="text-2xl font-semibold text-[#102B4E]">Quiz stats</h2>
+          <p className="mt-2 text-sm text-[#46607F]">
+            Response totals, matched students, and average scores per quiz, in display order.
+          </p>
+        </div>
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+          {activeQuizzes.length === 0 ? (
+            <p className="text-sm text-[#46607F]">No enabled quizzes yet.</p>
+          ) : (
+            activeQuizzes.map((quiz, index) => {
+              const stat = submissionStats.get(quiz.id);
+              return (
+                <div key={`quiz-stat-${quiz.id}`} className="rounded-2xl border border-[#DCE8F4] bg-[#F8FBFE] p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#102B4E]">
+                        #{index + 1} · {quiz.name}
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-[#102B4E]">{stat?.responses ?? 0}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46607F]">responses</p>
+                    </div>
+                    <Link
+                      href={adminHref(quiz.id)}
+                      className="rounded-full border border-[#102B4E] px-3 py-1 text-xs font-semibold text-[#102B4E]"
+                    >
+                      View
+                    </Link>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46607F]">Matched</dt>
+                      <dd className="mt-1 font-bold text-[#102B4E]">
+                        {stat ? (
+                          <span className={stat.matched === stat.responses ? "text-emerald-700" : undefined}>
+                            {stat.matched} / {stat.responses}
+                          </span>
+                        ) : (
+                          "0 / 0"
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46607F]">Students</dt>
+                      <dd className="mt-1 font-bold text-[#102B4E]">{stat?.students.size ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46607F]">Avg score</dt>
+                      <dd className="mt-1 font-bold text-[#102B4E]">{formatAverageScore(stat)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[#46607F]">Last activity</dt>
+                      <dd className="mt-1 font-semibold text-[#102B4E]">{stat?.latestTimestamp || "-"}</dd>
+                    </div>
+                  </dl>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       <div className="mt-8 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
@@ -445,7 +542,8 @@ async function AdminDashboard({
                   ? "not configured"
                   : "environment variables"}
             </span>
-            . Paste a results sheet link to add a quiz.
+            . Paste a results sheet link to add a quiz. Use ↑ / ↓ to change the quiz order — it is the order shown
+            across the portal.
           </p>
         </div>
 
@@ -454,11 +552,15 @@ async function AdminDashboard({
             <table className="min-w-full text-left text-sm text-[#46607F]">
               <thead className="bg-[#F0F7FC] text-[#102B4E]">
                 <tr>
+                  <th className="px-4 py-3 font-semibold">#</th>
                   <th className="px-4 py-3 font-semibold">Title</th>
                   <th className="px-4 py-3 font-semibold">Form</th>
                   <th className="px-4 py-3 font-semibold">Sheet</th>
                   <th className="px-4 py-3 font-semibold">Responses</th>
                   <th className="px-4 py-3 font-semibold">Matched</th>
+                  <th className="px-4 py-3 font-semibold">Students</th>
+                  <th className="px-4 py-3 font-semibold">Avg score</th>
+                  <th className="px-4 py-3 font-semibold">Last activity</th>
                   <th className="px-4 py-3 font-semibold">Enabled</th>
                   <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>
@@ -466,15 +568,25 @@ async function AdminDashboard({
               <tbody>
                 {snapshot.quizDefinitions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-[#46607F]">
+                    <td colSpan={11} className="px-4 py-6 text-[#46607F]">
                       No quizzes configured yet. Add the first one on the right.
                     </td>
                   </tr>
                 ) : (
                   snapshot.quizDefinitions.map((quiz) => {
                     const stat = submissionStats.get(quiz.id);
+                    const registryIndex =
+                      quiz.source === "registry"
+                        ? registryQuizzes.findIndex((entry) => entry.id === quiz.id)
+                        : -1;
+                    const isFirstRegistry = registryIndex === 0;
+                    const isLastRegistry =
+                      registryIndex >= 0 && registryIndex === registryQuizzes.length - 1;
                     return (
                     <tr key={quiz.id} className="border-t border-[#DCE8F4]">
+                      <td className="px-4 py-3 font-semibold text-[#102B4E]">
+                        {registryIndex >= 0 ? registryIndex + 1 : "—"}
+                      </td>
                       <td className="px-4 py-3">
                         <Link href={adminHref(quiz.id)} className="font-semibold text-[#102B4E] underline-offset-2 hover:underline">
                           {quiz.name}
@@ -521,10 +633,37 @@ async function AdminDashboard({
                           0
                         )}
                       </td>
+                      <td className="px-4 py-3">{stat?.students.size ?? 0}</td>
+                      <td className="px-4 py-3">{formatAverageScore(stat)}</td>
+                      <td className="whitespace-nowrap px-4 py-3">{stat?.latestTimestamp || "-"}</td>
                       <td className="px-4 py-3">{quiz.enabled ? "yes" : "no"}</td>
                       <td className="px-4 py-3">
                         {quiz.source === "registry" && quiz.registryRow ? (
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <form action={moveQuizAction}>
+                              <input type="hidden" name="row" value={quiz.registryRow} />
+                              <input type="hidden" name="direction" value="up" />
+                              <button
+                                type="submit"
+                                disabled={isFirstRegistry}
+                                aria-label={`Move ${quiz.name} up`}
+                                className="rounded-full border border-[#102B4E] px-2.5 py-1 text-xs font-semibold text-[#102B4E] disabled:cursor-not-allowed disabled:border-[#DCE8F4] disabled:text-[#94A7BF]"
+                              >
+                                ↑
+                              </button>
+                            </form>
+                            <form action={moveQuizAction}>
+                              <input type="hidden" name="row" value={quiz.registryRow} />
+                              <input type="hidden" name="direction" value="down" />
+                              <button
+                                type="submit"
+                                disabled={isLastRegistry}
+                                aria-label={`Move ${quiz.name} down`}
+                                className="rounded-full border border-[#102B4E] px-2.5 py-1 text-xs font-semibold text-[#102B4E] disabled:cursor-not-allowed disabled:border-[#DCE8F4] disabled:text-[#94A7BF]"
+                              >
+                                ↓
+                              </button>
+                            </form>
                             <form action={toggleQuizAction}>
                               <input type="hidden" name="row" value={quiz.registryRow} />
                               <input type="hidden" name="enabled" value={quiz.enabled ? "false" : "true"} />

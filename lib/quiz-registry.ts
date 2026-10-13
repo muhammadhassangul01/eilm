@@ -1,4 +1,12 @@
-import { createSheetTab, deleteSheetRow, appendSheetRow, listSheetTabs, readSheetRows, writeSheetRow } from "@/lib/google-sheets";
+import {
+  createSheetTab,
+  deleteSheetRow,
+  appendSheetRow,
+  listSheetTabs,
+  readSheetRows,
+  updateSheetRange,
+  writeSheetRow,
+} from "@/lib/google-sheets";
 import { normalizeText } from "@/lib/normalize";
 import {
   REGISTRY_HEADERS,
@@ -175,6 +183,58 @@ export async function setRegistryEntryEnabled(rowNumber: number, enabled: boolea
   ]);
 
   return { ok: true };
+}
+
+// Swaps a quiz's registry row with its neighbour so the admin can order the
+// list by hand. The sheet row order is the display order everywhere.
+export async function moveRegistryEntry(
+  rowNumber: number,
+  direction: "up" | "down",
+): Promise<ActionResult> {
+  if (!Number.isInteger(rowNumber) || rowNumber < 2) {
+    return invalid("That quiz row is no longer available. Refresh and try again.");
+  }
+
+  const location = getRegistryLocation();
+  const rows = await readSheetRows(location.spreadsheetId, location.tabTitle);
+  if (rows.length < 2 || rowNumber > rows.length) {
+    return invalid("That quiz row is no longer available. Refresh and try again.");
+  }
+
+  const target = direction === "up" ? rowNumber - 1 : rowNumber + 1;
+  if (target < 2) {
+    return invalid("That quiz is already at the top.");
+  }
+  if (target > rows.length) {
+    return invalid("That quiz is already at the bottom.");
+  }
+
+  const current = rows[rowNumber - 1] ?? [];
+  const neighbour = rows[target - 1] ?? [];
+  const width = Math.max(rows[0]?.length ?? 0, current.length, neighbour.length);
+  const lastColumn = columnLetter(width - 1);
+  const pad = (row: string[]): string[] => {
+    const padded = row.slice(0, width);
+    while (padded.length < width) {
+      padded.push("");
+    }
+    return padded;
+  };
+
+  await updateSheetRange(
+    location.spreadsheetId,
+    location.tabTitle,
+    `A${rowNumber}:${lastColumn}${rowNumber}`,
+    [pad(neighbour)],
+  );
+  await updateSheetRange(
+    location.spreadsheetId,
+    location.tabTitle,
+    `A${target}:${lastColumn}${target}`,
+    [pad(current)],
+  );
+
+  return { ok: true, message: normalizeText(current[0]) || "quiz" };
 }
 
 export async function deleteRegistryEntry(rowNumber: number): Promise<ActionResult> {

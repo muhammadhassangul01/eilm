@@ -4,7 +4,12 @@ import { redirect } from "next/navigation";
 import { updateTag } from "next/cache";
 
 import { getAdminSession } from "@/lib/auth";
-import { addRegistryEntry, deleteRegistryEntry, setRegistryEntryEnabled } from "@/lib/quiz-registry";
+import {
+  addRegistryEntry,
+  deleteRegistryEntry,
+  moveRegistryEntry,
+  setRegistryEntryEnabled,
+} from "@/lib/quiz-registry";
 
 const PORTAL_CACHE_TAG = "portal";
 
@@ -65,6 +70,27 @@ export async function toggleQuizAction(formData: FormData) {
 
   updateTag(PORTAL_CACHE_TAG);
   redirect(registryUrl({ updated: "1" }));
+}
+
+export async function moveQuizAction(formData: FormData) {
+  await requireAdmin();
+
+  const row = Number(formData.get("row"));
+  const direction = String(formData.get("direction") ?? "") === "up" ? "up" : "down";
+
+  let result: Awaited<ReturnType<typeof moveRegistryEntry>>;
+  try {
+    result = await moveRegistryEntry(row, direction);
+  } catch (error) {
+    result = { ok: false, error: messageOf(error) };
+  }
+
+  if (!result.ok) {
+    redirect(registryUrl({ error: result.error }));
+  }
+
+  updateTag(PORTAL_CACHE_TAG);
+  redirect(registryUrl({ moved: direction }));
 }
 
 export async function deleteQuizAction(formData: FormData) {
