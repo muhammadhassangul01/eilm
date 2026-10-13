@@ -337,30 +337,33 @@ export async function createSheetTab(spreadsheetId: string, title: string): Prom
   };
 }
 
-export async function writeSheetRow(
+export async function updateSheetRange(
   spreadsheetId: string,
   tab: string,
-  a1Cell: string,
-  values: string[],
+  a1Range: string,
+  values: string[][],
 ): Promise<void> {
   const dir = fixtureDir();
   if (dir) {
     const fixture = readFixture(dir, spreadsheetId);
     const target = findFixtureTab(fixture, tab);
-    const { column, row } = parseA1Cell(a1Cell);
+    const startCell = a1Range.split(":")[0];
+    const { column, row } = parseA1Cell(startCell);
 
-    while (target.rows.length < row) {
-      target.rows.push([]);
-    }
-
-    const existing = target.rows[row - 1] ?? [];
-    while (existing.length < column + values.length) {
-      existing.push("");
-    }
-    values.forEach((value, index) => {
-      existing[column + index] = value;
+    values.forEach((rowData, rowOffset) => {
+      const sheetRowIndex = row - 1 + rowOffset;
+      while (target.rows.length <= sheetRowIndex) {
+        target.rows.push([]);
+      }
+      const existing = target.rows[sheetRowIndex] ?? [];
+      while (existing.length < column + rowData.length) {
+        existing.push("");
+      }
+      rowData.forEach((value, colOffset) => {
+        existing[column + colOffset] = value;
+      });
+      target.rows[sheetRowIndex] = existing;
     });
-    target.rows[row - 1] = existing;
 
     writeFixture(dir, spreadsheetId, fixture);
     return;
@@ -371,8 +374,17 @@ export async function writeSheetRow(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${quoteTabName(resolved.title)}!${a1Cell}`,
+    range: `${quoteTabName(resolved.title)}!${a1Range}`,
     valueInputOption: "RAW",
-    requestBody: { values: [values] },
+    requestBody: { values },
   });
+}
+
+export async function writeSheetRow(
+  spreadsheetId: string,
+  tab: string,
+  a1Cell: string,
+  values: string[],
+): Promise<void> {
+  return updateSheetRange(spreadsheetId, tab, a1Cell, [values]);
 }

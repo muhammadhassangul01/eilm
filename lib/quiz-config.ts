@@ -157,7 +157,7 @@ export function parseRegistryRows(rows: string[][]): {
     });
   });
 
-  return { entries, problems };
+  return { entries: entries.sort(compareQuizzes), problems };
 }
 
 function parseEnvRegistryJson(value: string): QuizDefinition[] {
@@ -225,13 +225,13 @@ export function getEnvQuizDefinitions(): QuizDefinition[] {
   if (registryJson) {
     const fromJson = parseEnvRegistryJson(registryJson);
     if (fromJson.length > 0) {
-      return fromJson;
+      return sortQuizzes(fromJson);
     }
   }
 
   const numbered = pullNumberedQuizzes();
   if (numbered.length > 0) {
-    return numbered;
+    return sortQuizzes(numbered);
   }
 
   const legacySheetId = process.env.QUIZ_SHEET_ID;
@@ -256,5 +256,21 @@ export function getEnvQuizDefinitions(): QuizDefinition[] {
 }
 
 export function getEnabledQuizzes(quizzes: QuizDefinition[]): QuizDefinition[] {
-  return quizzes.filter((quiz) => quiz.enabled);
+  return sortQuizzes(quizzes.filter((quiz) => quiz.enabled));
+}
+
+// Quizzes are added to the registry in whatever order they happen to be
+// created, but humans expect "Quiz 12" before "Quiz 37". Sort by the first
+// number in the title and fall back to the title itself.
+export function compareQuizzes(a: QuizDefinition, b: QuizDefinition): number {
+  const numberA = Number(a.name.match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
+  const numberB = Number(b.name.match(/\d+/)?.[0] ?? Number.POSITIVE_INFINITY);
+  if (numberA !== numberB) {
+    return numberA - numberB;
+  }
+  return a.name.localeCompare(b.name);
+}
+
+export function sortQuizzes(quizzes: QuizDefinition[]): QuizDefinition[] {
+  return [...quizzes].sort(compareQuizzes);
 }

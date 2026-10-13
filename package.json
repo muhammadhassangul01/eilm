@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "verify": "tsx scripts/verify-matching.ts",
-    "inspect": "tsx scripts/inspect-sheets.ts"
+    "inspect": "tsx scripts/inspect-sheets.ts",
+    "backfill-phones": "tsx scripts/backfill-quiz-phones.ts",
+    "export-unknown": "tsx scripts/export-unknown.ts"
   },
   "dependencies": {
     "googleapis": "^183.0.0",

@@ -5,10 +5,11 @@ import { DataLoading } from "@/components/data-loading";
 import { handleAdminLogin, getAdminSession, logoutAdmin } from "@/lib/auth";
 import { deleteQuizAction, toggleQuizAction, addQuizAction } from "@/lib/quiz-actions";
 import { getEnabledQuizzes } from "@/lib/quiz-config";
-import { buildCompletedQuizMap, getPortalSnapshot } from "@/lib/student-data";
+import { buildCompletedQuizMap, compareSubmissionTimestamps, getPortalSnapshot } from "@/lib/student-data";
 
 type AdminSearchParams = {
   search?: string | string[];
+  quiz?: string | string[];
   error?: string | string[];
   added?: string | string[];
   updated?: string | string[];
@@ -36,6 +37,7 @@ export default function AdminPage({ searchParams }: { searchParams?: Promise<Adm
 async function AdminPageContent({ searchParams }: { searchParams?: Promise<AdminSearchParams> }) {
   const params = (await searchParams) ?? {};
   const searchQuery = first(params.search).trim();
+  const selectedQuizId = first(params.quiz).trim();
   const errorMessage = first(params.error);
   const addedMessage = first(params.added);
   const updatedMessage = first(params.updated);
@@ -108,6 +110,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
 
       <div className="mt-6 rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF] p-5 shadow-sm">
         <form method="GET" className="flex flex-col gap-3 md:flex-row">
+          {selectedQuizId ? <input type="hidden" name="quiz" value={selectedQuizId} /> : null}
           <input
             name="search"
             defaultValue={searchQuery}
@@ -123,6 +126,7 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
       <Suspense fallback={<DataLoading label="Loading dashboard data" />}>
         <AdminDashboard
           searchQuery={searchQuery}
+          selectedQuizId={selectedQuizId}
           messages={{ errorMessage, addedMessage, updatedMessage, removedMessage }}
         />
       </Suspense>
@@ -134,9 +138,11 @@ async function AdminPageContent({ searchParams }: { searchParams?: Promise<Admin
 // sheet-backed tables stream in.
 async function AdminDashboard({
   searchQuery,
+  selectedQuizId,
   messages,
 }: {
   searchQuery: string;
+  selectedQuizId: string;
   messages: {
     errorMessage: string;
     addedMessage: string;
@@ -157,6 +163,13 @@ async function AdminDashboard({
     );
   }
 
+  const activeQuizzes = getEnabledQuizzes(snapshot.quizDefinitions);
+  const selectedQuiz = selectedQuizId
+    ? (activeQuizzes.find((quiz) => quiz.id === selectedQuizId) ??
+      snapshot.quizDefinitions.find((quiz) => quiz.id === selectedQuizId) ??
+      null)
+    : null;
+
   const query = searchQuery.toLowerCase();
   const filterMatches = (value: string) => !query || value.toLowerCase().includes(query);
 
@@ -170,6 +183,11 @@ async function AdminDashboard({
   const pendingStudents = allStudents.filter((student) => student.status === "pending");
   const reviewStudents = allStudents.filter((student) => student.status === "review_required");
 
+  // Submissions in scope: one quiz when a quiz tab is selected, otherwise all.
+  const scopedSubmissions = selectedQuiz
+    ? snapshot.submissions.filter((submission) => submission.quizId === selectedQuiz.id)
+    : snapshot.submissions;
+
   const submissionMatches = (submission: {
     name: string;
     phone: string;
@@ -181,15 +199,32 @@ async function AdminDashboard({
       filterMatches(field ?? ""),
     );
 
-  const unmatchedSubmissions = snapshot.submissions.filter(
+  const scopedSubmissionsShown = [...scopedSubmissions]
+    .filter(submissionMatches)
+    .sort((a, b) => compareSubmissionTimestamps(a.timestamp, b.timestamp));
+
+  const unmatchedSubmissions = scopedSubmissions.filter(
     (submission) => submission.matchStatus === "not_registered" && submissionMatches(submission),
   );
-  const invalidSubmissions = snapshot.submissions.filter(
+  const invalidSubmissions = scopedSubmissions.filter(
     (submission) => submission.matchStatus === "invalid_phone" && submissionMatches(submission),
   );
-  const duplicateSubmissions = snapshot.submissions.filter(
+  const duplicateSubmissions = scopedSubmissions.filter(
     (submission) => submission.matchStatus === "duplicate_registration" && submissionMatches(submission),
   );
+
+  const scopedStats = {
+    responses: scopedSubmissions.length,
+    matched: scopedSubmissions.filter((submission) => submission.matchStatus === "matched").length,
+    unmatched: scopedSubmissions.filter((submission) => submission.matchStatus === "not_registered").length,
+    invalid: scopedSubmissions.filter((submission) => submission.matchStatus === "invalid_phone").length,
+    ambiguous: scopedSubmissions.filter((submission) => submission.matchStatus === "duplicate_registration").length,
+    students: new Set(
+      scopedSubmissions.flatMap((submission) =>
+        submission.matchStatus === "matched" ? submission.matchedRegistrationIds : [],
+      ),
+    ).size,
+  };
 
   const conflictingRegistrations = allStudents.filter(
     (student) => student.reviewReasons.length > 0 && student.status !== "review_required",
@@ -205,11 +240,32 @@ async function AdminDashboard({
     });
   });
 
-  const activeQuizzes = getEnabledQuizzes(snapshot.quizDefinitions);
   const completedMap = buildCompletedQuizMap(snapshot.submissions);
   const matrixRows = allStudents;
   const registryQuizzes = snapshot.quizDefinitions.filter((quiz) => quiz.source === "registry");
   const envQuizzes = snapshot.quizDefinitions.filter((quiz) => quiz.source !== "registry");
+
+  const submissionStats = new Map<string, { responses: number; matched: number }>();
+  snapshot.submissions.forEach((submission) => {
+    const stat = submissionStats.get(submission.quizId) ?? { responses: 0, matched: 0 };
+    stat.responses += 1;
+    if (submission.matchStatus === "matched") {
+      stat.matched += 1;
+    }
+    submissionStats.set(submission.quizId, stat);
+  });
+
+  const adminHref = (quizId?: string) => {
+    const search = new URLSearchParams();
+    if (searchQuery) {
+      search.set("search", searchQuery);
+    }
+    if (quizId) {
+      search.set("quiz", quizId);
+    }
+    const qs = search.toString();
+    return qs ? `/admin?${qs}` : "/admin";
+  };
 
   const notices: Array<{ tone: "ok" | "warn"; text: string }> = [];
   if (addedMessage) {
@@ -245,6 +301,36 @@ async function AdminDashboard({
         </div>
       ) : null}
 
+      <div className="mt-8 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#102B4E]">Quiz view:</span>
+        <Link
+          href={adminHref()}
+          className={`rounded-full px-4 py-2 text-sm font-semibold ${
+            selectedQuiz
+              ? "border border-[#DCE8F4] bg-transparent text-[#102B4E]"
+              : "bg-[#102B4E] text-[#FFFFFF]"
+          }`}
+        >
+          All quizzes
+        </Link>
+        {activeQuizzes.map((quiz) => {
+          const isActive = selectedQuiz?.id === quiz.id;
+          const stat = submissionStats.get(quiz.id);
+          return (
+            <Link
+              key={`chip-${quiz.id}`}
+              href={adminHref(quiz.id)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                isActive ? "bg-[#102B4E] text-[#FFFFFF]" : "border border-[#DCE8F4] bg-transparent text-[#102B4E]"
+              }`}
+            >
+              {quiz.name}
+              {stat ? <span className="ml-1.5 opacity-70">{stat.responses}</span> : null}
+            </Link>
+          );
+        })}
+      </div>
+
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Registration rows", value: snapshot.metrics.totalRegistrationRows },
@@ -273,6 +359,80 @@ async function AdminDashboard({
         ))}
       </div>
 
+      <div className="mt-8 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
+        <div className="flex flex-col gap-2 border-b border-[#DCE8F4] p-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-[#102B4E]">
+              {selectedQuiz ? `${selectedQuiz.name} submissions` : "Submissions"}
+            </h2>
+            <p className="mt-2 text-sm text-[#46607F]">
+              {scopedStats.responses} response{scopedStats.responses === 1 ? "" : "s"} · {scopedStats.matched} matched ·{" "}
+              {scopedStats.unmatched} unmatched · {scopedStats.invalid} invalid phones · {scopedStats.ambiguous} ambiguous ·{" "}
+              {scopedStats.students} unique students
+              {selectedQuiz ? (
+                <>
+                  {" "}
+                  <Link href={adminHref()} className="font-semibold text-[#102B4E] underline">
+                    show all quizzes
+                  </Link>
+                </>
+              ) : (
+                " · pick a quiz above to focus on one"
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="max-h-[32rem] overflow-auto">
+          <table className="min-w-full text-left text-sm text-[#46607F]">
+            <thead className="sticky top-0 bg-[#F0F7FC] text-[#102B4E]">
+              <tr>
+                {!selectedQuiz ? <th className="px-4 py-3 font-semibold">Quiz</th> : null}
+                <th className="px-4 py-3 font-semibold">Timestamp</th>
+                <th className="px-4 py-3 font-semibold">Name</th>
+                <th className="px-4 py-3 font-semibold">Phone</th>
+                <th className="px-4 py-3 font-semibold">Score</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scopedSubmissionsShown.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6" colSpan={selectedQuiz ? 5 : 6}>
+                    No submissions match the current filter.
+                  </td>
+                </tr>
+              ) : (
+                scopedSubmissionsShown.map((submission) => (
+                  <tr
+                    key={`submission-row-${submission.quizId}-${submission.rowIndex}`}
+                    className="border-t border-[#DCE8F4]"
+                  >
+                    {!selectedQuiz ? <td className="px-4 py-3">{submission.quizName}</td> : null}
+                    <td className="whitespace-nowrap px-4 py-3">{submission.timestamp || "-"}</td>
+                    <td className="px-4 py-3">{submission.name || "-"}</td>
+                    <td className="px-4 py-3">{submission.phone || "-"}</td>
+                    <td className="px-4 py-3">{submission.score || "-"}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={
+                          submission.matchStatus === "matched"
+                            ? "font-semibold text-emerald-700"
+                            : submission.matchStatus === "not_registered" || submission.matchStatus === "invalid_phone"
+                              ? "font-semibold text-amber-700"
+                              : undefined
+                        }
+                      >
+                        {submission.matchStatus}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <section id="registry" className="mt-10 overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
         <div className="border-b border-[#DCE8F4] p-5">
           <h2 className="text-2xl font-semibold text-[#102B4E]">Quiz registry</h2>
@@ -296,7 +456,9 @@ async function AdminDashboard({
                 <tr>
                   <th className="px-4 py-3 font-semibold">Title</th>
                   <th className="px-4 py-3 font-semibold">Form</th>
+                  <th className="px-4 py-3 font-semibold">Sheet</th>
                   <th className="px-4 py-3 font-semibold">Responses</th>
+                  <th className="px-4 py-3 font-semibold">Matched</th>
                   <th className="px-4 py-3 font-semibold">Enabled</th>
                   <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>
@@ -304,15 +466,19 @@ async function AdminDashboard({
               <tbody>
                 {snapshot.quizDefinitions.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-[#46607F]">
+                    <td colSpan={7} className="px-4 py-6 text-[#46607F]">
                       No quizzes configured yet. Add the first one on the right.
                     </td>
                   </tr>
                 ) : (
-                  snapshot.quizDefinitions.map((quiz) => (
+                  snapshot.quizDefinitions.map((quiz) => {
+                    const stat = submissionStats.get(quiz.id);
+                    return (
                     <tr key={quiz.id} className="border-t border-[#DCE8F4]">
                       <td className="px-4 py-3">
-                        <span className="font-semibold text-[#102B4E]">{quiz.name}</span>
+                        <Link href={adminHref(quiz.id)} className="font-semibold text-[#102B4E] underline-offset-2 hover:underline">
+                          {quiz.name}
+                        </Link>
                         <span className="ml-2 text-xs uppercase tracking-[0.12em] text-[#102B4E]">{quiz.source}</span>
                       </td>
                       <td className="px-4 py-3">
@@ -345,6 +511,16 @@ async function AdminDashboard({
                           "not linked"
                         )}
                       </td>
+                      <td className="px-4 py-3">{stat?.responses ?? 0}</td>
+                      <td className="px-4 py-3">
+                        {stat ? (
+                          <span className={stat.matched === stat.responses ? "font-semibold text-emerald-700" : undefined}>
+                            {stat.matched}
+                          </span>
+                        ) : (
+                          0
+                        )}
+                      </td>
                       <td className="px-4 py-3">{quiz.enabled ? "yes" : "no"}</td>
                       <td className="px-4 py-3">
                         {quiz.source === "registry" && quiz.registryRow ? (
@@ -374,7 +550,8 @@ async function AdminDashboard({
                         )}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -391,7 +568,7 @@ async function AdminDashboard({
                   id="title"
                   name="title"
                   required
-                  placeholder="Quiz 38"
+                  placeholder="Quiz 40"
                   className="w-full rounded-xl border border-[#DCE8F4] bg-white px-4 py-3 text-[#102B4E] outline-none focus:border-[#102B4E]"
                 />
               </div>
@@ -458,7 +635,9 @@ async function AdminDashboard({
                 <th className="px-4 py-3 font-semibold">Student</th>
                 {activeQuizzes.map((quiz) => (
                   <th key={`head-${quiz.id}`} className="px-3 py-3 text-center text-xs font-semibold">
-                    {quiz.name}
+                    <Link href={adminHref(quiz.id)} className="text-[#102B4E] underline-offset-2 hover:underline">
+                      {quiz.name}
+                    </Link>
                   </th>
                 ))}
               </tr>
@@ -617,6 +796,10 @@ async function AdminDashboard({
         <div className="overflow-hidden rounded-[2rem] border border-[#DCE8F4] bg-[#FFFFFF]">
           <div className="border-b border-[#DCE8F4] p-5">
             <h2 className="text-2xl font-semibold text-[#102B4E]">Unmatched and invalid submissions</h2>
+            <p className="mt-2 text-sm text-[#46607F]">
+              {selectedQuiz ? `Scoped to ${selectedQuiz.name}.` : "Across all quizzes."} These people could not be linked
+              to a registration record.
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm text-[#46607F]">
